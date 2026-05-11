@@ -24,19 +24,21 @@ O projeto foi desenhado seguindo os princípios de **Clean Architecture** e **Do
 
 ## Configuração e Segurança
 
-### 1. Gestão de Segredos
+### 1. Gestão de Secrets
 Para garantir a segurança, a connection string do banco de dados não é armazenada no `appsettings.json`.
 
 * **Desenvolvimento (Local):** Utilize o **.NET User Secrets**.
     ```bash
     dotnet user-secrets init
-    dotnet user-secrets set "ConnectionStrings:Supabase" "Sua_Connection_String_Aqui"
+    dotnet user-secrets set "ConnectionStrings:Database" "Sua_Connection_String_Aqui"
     ```
 * **Produção:** A aplicação lê a variável de ambiente `ConnectionStrings__Supabase`.
 
 ### 2. Inicialização do Banco de Dados
 A aplicação possui um serviço de `DatabaseInitializer` que executa os scripts DDL automaticamente ao iniciar, porém, por segurança, esta funcionalidade está restrita ao ambiente de **Desenvolvimento (`Development`)**.
 
+### 3. Result Pattern
+O sistema evita o uso de *Exceptions* para controle de fluxo ou quebra de regras de negócio conhecidas (ex: saldo insuficiente). Em vez disso, a camada de domínio utiliza o padrão **Result Pattern** (`Result` / `Result<T>`) presente no módulo `FundoInvestimento.Libs`. Isso torna o tratamento de erros explícito e aumenta a performance da aplicação.
 ---
 
 ## Modelagem do Banco de Dados
