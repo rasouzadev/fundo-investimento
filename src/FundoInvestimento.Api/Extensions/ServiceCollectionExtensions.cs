@@ -1,8 +1,12 @@
+using FundoInvestimento.Application.UseCases;
 using FundoInvestimento.Domain.Interfaces.Data;
 using FundoInvestimento.Domain.Interfaces.Repositories;
+using FundoInvestimento.Domain.Interfaces.UseCases;
 using FundoInvestimento.Infrastructure.Data;
 using FundoInvestimento.Infrastructure.Repositories;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FundoInvestimento.Api.Extensions;
 
@@ -14,8 +18,30 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton(TimeProvider.System);
+
+        services.AddJsonOptions();
         services.AddStandardOpenApi("Fundo de Investimento API", "v1");
         services.AddDatabaseConnection(configuration);
+        services.AddRepositories();
+        services.AddUseCases();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registra configurações referentes a políticas de JSON da API.
+    /// </summary>
+    private static IServiceCollection AddJsonOptions(this IServiceCollection services)
+    {
+        services.AddControllers()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+                options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
+                options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper));
+            });
 
         return services;
     }
@@ -71,6 +97,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registra as implementações dos repositórios e do UnitOfWork para injeção de dependência.
+    /// </summary>
     private static IServiceCollection AddRepositories(this IServiceCollection services)
     {
         services.AddScoped<DbSession>();
@@ -78,7 +107,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IClienteRepository, ClienteRepository>();
         services.AddScoped<IFundoRepository, FundoRepository>();
         services.AddScoped<IOrdemRepository, OrdemRepository>();
-        services.AddScoped<IPosicaoClienteRepository, PosicaoClienteRepository>():
+        services.AddScoped<IPosicaoClienteRepository, PosicaoClienteRepository>();
+        return services;
+    }
+
+    /// <summary>
+    /// Registra as implementações dos UseCases para injeção de dependência.
+    /// </summary>
+    private static IServiceCollection AddUseCases(this IServiceCollection services)
+    {
+        services.AddScoped<ICriarOrdemImediataUseCase, CriarOrdemImediataUseCase>();
         return services;
     }
 }
