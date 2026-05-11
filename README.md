@@ -40,7 +40,7 @@ A aplicação possui um serviço de `DatabaseInitializer` que executa os scripts
 ---
 
 ## Modelagem do Banco de Dados
-
+		
 ### 1. Clientes (`cliente`)
 | Campo | Descrição |
 |---|---|
@@ -78,3 +78,48 @@ A aplicação possui um serviço de `DatabaseInitializer` que executa os scripts
 | `data_agendamento` | Data programada (NULL para ordens imediatas) |
 | `status` | `PENDENTE`, `CONCLUIDO` ou `REJEITADO` |
 | `criado_em` | Timestamp da criação da solicitação |
+
+
+### Diagrama Entidade-Relacionamento (MER/DER)
+
+```mermaid
+erDiagram
+    CLIENTE ||--o{ POSICAO_CLIENTE : "possui"
+    CLIENTE ||--o{ ORDEM : "solicita"
+    FUNDO ||--o{ POSICAO_CLIENTE : "compoe"
+    FUNDO ||--o{ ORDEM : "recebe"
+
+    CLIENTE {
+        uuid id PK
+        varchar nome
+        varchar cpf UK
+        numeric saldo_disponivel
+    }
+    
+    FUNDO {
+        uuid id PK
+        varchar nome
+        time horario_corte
+        numeric valor_cota
+        numeric valor_minimo_aporte
+        numeric valor_minimo_permanencia
+        varchar status_captacao
+    }
+    
+    POSICAO_CLIENTE {
+        uuid id_cliente PK, FK
+        uuid id_fundo PK, FK
+        integer quantidade_cotas
+    }
+    
+    ORDEM {
+        uuid id PK
+        uuid id_cliente FK
+        uuid id_fundo FK
+        varchar tipo_operacao
+        integer quantidade_cotas
+        date data_agendamento
+        varchar status
+        timestamptz criado_em
+    }
+````
