@@ -14,11 +14,24 @@ Uma API para gestão de aportes e resgates de um fundo de investimentos fictíci
 O projeto foi desenhado seguindo os princípios de **Clean Architecture** e **Domain-Driven Design (DDD)**:
 
 * **FundoInvestimento.Api:** Camada de apresentação. Contém os endpoints REST, configurações de injeção de dependência e middlewares.
-* **FundoInvestimento.Application:** Orquestração dos casos de uso. Contém os serviços de aplicação, DTOs e interfaces de abstração (ex: `IDbConnectionFactory`).
+* **FundoInvestimento.Application:** Orquestração dos casos de uso. Contém os serviços de aplicação, DTOs e interfaces de abstração (ex: repositórios e Unit of Work).
 * **FundoInvestimento.Domain:** O coração do sistema. Contém as Entidades ricas, Enums e as regras de negócio fundamentais sem dependências externas.
 * **FundoInvestimento.Infrastructure:** Implementação técnica. Contém os repositórios (Dapper), conexão com o banco e lógica de inicialização de dados.
 * **FundoInvestimento.Libs:** Biblioteca de utilitários e pacotes compartilhados entre as camadas.
 * **FundoInvestimento.Tests:** Garantia de qualidade com testes unitários focados nas regras de negócio e validação de cenários.
+
+---
+
+## Padrões e Decisões Arquiteturais
+
+### 1. Unit of Work (Transações ACID)
+Como operações financeiras (Aporte/Resgate) afetam múltiplas tabelas simultaneamente (atualizam saldo do cliente, posição de cotas e inserem histórico de ordens), o sistema implementa o padrão **Unit of Work**. Ele compartilha a mesma `DbSession` e transação do banco de dados entre os Repositórios do Dapper. Isso garante que a operação seja atômica: se qualquer validação ou persistência falhar no meio do processo, ocorre um `Rollback` completo, blindando o sistema contra dados corrompidos.
+
+### 2. Controle de Concorrência (Pessimistic Locking)
+Para lidar com requisições simultâneas e prevenir a **Condição de Corrida (Race Condition)**, a aplicação utiliza **Locks Pessimistas** diretamente no nível do banco de dados através da cláusula `FOR UPDATE` no PostgreSQL.
+
+### 3. Result Pattern
+O sistema evita o uso de *Exceptions* para controle de fluxo ou quebra de regras de negócio conhecidas (ex: saldo insuficiente, fundo fechado). Em vez disso, a camada de domínio utiliza o padrão **Result Pattern** (`Result` / `Result<T>`) presente no módulo `FundoInvestimento.Libs`. Isso torna o tratamento de erros explícito, padroniza as respostas de erro HTTP e aumenta a performance da aplicação.
 
 ---
 
@@ -37,8 +50,6 @@ Para garantir a segurança, a connection string do banco de dados não é armaze
 ### 2. Inicialização do Banco de Dados
 A aplicação possui um serviço de `DatabaseInitializer` que executa os scripts DDL automaticamente ao iniciar, porém, por segurança, esta funcionalidade está restrita ao ambiente de **Desenvolvimento (`Development`)**.
 
-### 3. Result Pattern
-O sistema evita o uso de *Exceptions* para controle de fluxo ou quebra de regras de negócio conhecidas (ex: saldo insuficiente). Em vez disso, a camada de domínio utiliza o padrão **Result Pattern** (`Result` / `Result<T>`) presente no módulo `FundoInvestimento.Libs`. Isso torna o tratamento de erros explícito e aumenta a performance da aplicação.
 ---
 
 ## Modelagem do Banco de Dados
@@ -80,7 +91,6 @@ O sistema evita o uso de *Exceptions* para controle de fluxo ou quebra de regras
 | `data_agendamento` | Data programada (NULL para ordens imediatas) |
 | `status` | `PENDENTE`, `CONCLUIDO` ou `REJEITADO` |
 | `criado_em` | Timestamp da criação da solicitação |
-
 
 ### Diagrama Entidade-Relacionamento (MER/DER)
 
@@ -124,4 +134,3 @@ erDiagram
         varchar status
         timestamptz criado_em
     }
-````

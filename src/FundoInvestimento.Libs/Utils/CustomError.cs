@@ -4,7 +4,7 @@ namespace FundoInvestimento.Libs.Utils;
 
 /// <summary>
 /// Representa um erro detalhado de uma operação, projetado para facilitar 
-/// o mapeamento direto para respostas HTTP (ProblemDetails).
+/// o mapeamento direto para respostas HTTP.
 /// </summary>
 [ExcludeFromCodeCoverage]
 public class CustomError

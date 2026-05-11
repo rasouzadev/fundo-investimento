@@ -1,5 +1,7 @@
 using FundoInvestimento.Domain.Interfaces.Data;
+using FundoInvestimento.Domain.Interfaces.Repositories;
 using FundoInvestimento.Infrastructure.Data;
+using FundoInvestimento.Infrastructure.Repositories;
 using System.Diagnostics.CodeAnalysis;
 
 namespace FundoInvestimento.Api.Extensions;
@@ -66,6 +68,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDbConnectionFactory>(new NpgsqlConnectionFactory(connectionString));
         services.AddScoped<DatabaseInitializer>();
 
+        return services;
+    }
+
+    private static IServiceCollection AddRepositories(this IServiceCollection services)
+    {
+        services.AddScoped<DbSession>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IClienteRepository, ClienteRepository>();
+        services.AddScoped<IFundoRepository, FundoRepository>();
+        services.AddScoped<IOrdemRepository, OrdemRepository>();
+        services.AddScoped<IPosicaoClienteRepository, PosicaoClienteRepository>():
         return services;
     }
 }
