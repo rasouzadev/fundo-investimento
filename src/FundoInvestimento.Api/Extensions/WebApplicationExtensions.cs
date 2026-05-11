@@ -1,7 +1,8 @@
-namespace FundoInvestimento.Api.Extensions;
-
+using FundoInvestimento.Api.Middlewares;
 using Scalar.AspNetCore;
 using System.Diagnostics.CodeAnalysis;
+
+namespace FundoInvestimento.Api.Extensions;
 
 [ExcludeFromCodeCoverage]
 public static class WebApplicationExtensions
@@ -17,6 +18,7 @@ public static class WebApplicationExtensions
             app.MapScalarApiReference();
         }
 
+        app.UseMiddleware<GlobalExceptionMiddleware>();
         return app;
     }
 }
