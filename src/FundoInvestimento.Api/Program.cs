@@ -4,6 +4,7 @@ using FundoInvestimento.Infrastructure.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
+builder.AddObservability();
 builder.Services.AddServices(builder.Configuration);
 
 var app = builder.Build();
@@ -19,5 +20,6 @@ if (app.Environment.IsDevelopment())
 
 // Configure the HTTP request pipeline
 app.UseMiddlewares();
+app.MapControllers();
 
 app.Run();
