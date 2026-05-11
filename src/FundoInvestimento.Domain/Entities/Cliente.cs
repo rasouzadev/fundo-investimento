@@ -28,7 +28,7 @@ public class Cliente
     public decimal SaldoDisponivel { get; private set; }
 
     /// <summary>
-    /// Construtor vazio exigido por ferramentas de ORM (como o Dapper) para materialização do objeto.
+    /// Construtor vazio exigido por ferramentas de ORM.
     /// </summary>
     protected Cliente() { }
 
