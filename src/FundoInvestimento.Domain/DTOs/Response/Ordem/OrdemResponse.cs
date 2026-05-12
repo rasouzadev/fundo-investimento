@@ -1,29 +1,20 @@
 ﻿using FundoInvestimento.Domain.Enums;
+using System.ComponentModel;
 
 namespace FundoInvestimento.Domain.DTOs.Response.Ordem;
 
-/// <summary>
-/// Representa o resultado do processamento de uma ordem.
-/// </summary>
+[Description("Representa o resultado do processamento de uma ordem.")]
 public class OrdemResponse
 {
-    /// <summary>
-    /// Identificador único gerado para a ordem.
-    /// </summary>
+    [Description("Identificador único gerado para a ordem.")]
     public Guid Id { get; set; }
 
-    /// <summary>
-    /// Tipo da operação que foi processada.
-    /// </summary>
+    [Description("Tipo da operação que foi processada.")]
     public TipoOperacao TipoOperacao { get; set; }
 
-    /// <summary>
-    /// Status atual da ordem após o processamento.
-    /// </summary>
+    [Description("Status atual da ordem após o processamento.")]
     public StatusOrdem Status { get; set; }
 
-    /// <summary>
-    /// Data e hora exata em que a ordem foi registrada no sistema.
-    /// </summary>
+    [Description("Data e hora exata em que a ordem foi registrada no sistema.")]
     public DateTimeOffset CriadoEm { get; set; }
 }

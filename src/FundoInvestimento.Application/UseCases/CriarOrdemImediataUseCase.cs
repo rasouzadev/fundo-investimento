@@ -43,7 +43,7 @@ public class CriarOrdemImediataUseCase : ICriarOrdemImediataUseCase
 
     /// <inheritdoc/>
     public async Task<Result<OrdemResponse>> ExecuteAsync(OrdemRequest request, CancellationToken cancellationToken = default)
-    {
+     {
         _logger.LogInformation("Iniciando processamento de ordem imediata. ClienteId: {ClienteId}, FundoId: {FundoId}",
             request.IdCliente, request.IdFundo);
 
@@ -54,7 +54,7 @@ public class CriarOrdemImediataUseCase : ICriarOrdemImediataUseCase
             return Result<OrdemResponse>.Failure(new CustomError("FUNDO_NAO_ENCONTRADO", "Fundo de investimento não localizado.", 404));
         }
 
-        var horaAtual = _timeProvider.GetLocalNow().TimeOfDay;
+        var horaAtual = TimeOnly.FromTimeSpan(_timeProvider.GetLocalNow().TimeOfDay);
         var cutOffResult = fundo.DentroDoHorarioDeCorte(horaAtual);
         if (cutOffResult.IsFailure)
         {

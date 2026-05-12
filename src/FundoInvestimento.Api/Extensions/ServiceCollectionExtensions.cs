@@ -1,9 +1,12 @@
+using Dapper;
 using FundoInvestimento.Application.UseCases;
 using FundoInvestimento.Domain.Interfaces.Data;
 using FundoInvestimento.Domain.Interfaces.Repositories;
 using FundoInvestimento.Domain.Interfaces.UseCases;
 using FundoInvestimento.Infrastructure.Data;
+using FundoInvestimento.Infrastructure.Data.Handlers;
 using FundoInvestimento.Infrastructure.Repositories;
+using Microsoft.AspNetCore.Http.Json;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -30,18 +33,22 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registra configurações referentes a políticas de JSON da API.
+    /// Registra configurações referentes a políticas de JSON e endpoints da API.
     /// </summary>
     private static IServiceCollection AddJsonOptions(this IServiceCollection services)
     {
+        var jsonOptionsSetup = (JsonSerializerOptions options) =>
+        {
+            options.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+            options.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
+            options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper));
+        };
+
         services.AddControllers()
-            .AddJsonOptions(options =>
-            {
-                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
-                options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
-                options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper));
-            });
+        .AddJsonOptions(options => jsonOptionsSetup(options.JsonSerializerOptions));
+
+        services.Configure<JsonOptions>(options => jsonOptionsSetup(options.SerializerOptions));
 
         return services;
     }
@@ -90,6 +97,9 @@ public static class ServiceCollectionExtensions
         {
             throw new ArgumentNullException(nameof(connectionString), "A connection string 'Database' não foi encontrada nas configurações.");
         }
+
+        SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
+        SqlMapper.AddTypeHandler(new TimeOnlyTypeHandler());
 
         services.AddSingleton<IDbConnectionFactory>(new NpgsqlConnectionFactory(connectionString));
         services.AddScoped<DatabaseInitializer>();

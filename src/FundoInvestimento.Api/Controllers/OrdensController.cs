@@ -1,0 +1,37 @@
+﻿using FundoInvestimento.Domain.DTOs.Requests.Ordem;
+using FundoInvestimento.Domain.DTOs.Response.Ordem;
+using FundoInvestimento.Domain.Interfaces.UseCases;
+using Microsoft.AspNetCore.Mvc;
+
+namespace FundoInvestimento.Api.Controllers;
+
+/// <summary>
+/// Endpoints para gestão de ordens de investimento (Aportes e Resgates).
+/// </summary>
+[Route("api/v1/ordens")]
+public class OrdensController : BaseController
+{
+    private readonly ICriarOrdemImediataUseCase _criarOrdemImediataUseCase;
+
+    public OrdensController(ICriarOrdemImediataUseCase criarOrdemImediataUseCase)
+    {
+        _criarOrdemImediataUseCase = criarOrdemImediataUseCase;
+    }
+
+    /// <summary>
+    /// Solicita a execução de uma nova ordem imediata (Aporte ou Resgate) em um fundo de investimentos.
+    /// </summary>
+    /// <param name="request">Payload contendo os dados do cliente, fundo e operação desejada.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>Os dados da ordem processada ou os detalhes da violação da regra de negócio.</returns>
+    [HttpPost]
+    [ProducesResponseType(typeof(OrdemResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CriarOrdemImediata([FromBody] OrdemRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _criarOrdemImediataUseCase.ExecuteAsync(request, cancellationToken);
+
+        return CustomResponse(result);
+    }
+}

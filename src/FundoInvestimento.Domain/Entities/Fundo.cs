@@ -21,7 +21,7 @@ public class Fundo
     /// <summary>
     /// Horário limite diário (Cut-off time) para que ordens imediatas sejam aceitas e processadas no mesmo dia.
     /// </summary>
-    public TimeSpan HorarioCorte { get; private set; }
+    public TimeOnly HorarioCorte { get; private set; }
 
     /// <summary>
     /// Valor atualizado da cota do fundo.
@@ -57,7 +57,7 @@ public class Fundo
     /// <param name="valorMinimoAporte">Valor mínimo para investir.</param>
     /// <param name="valorMinimoPermanencia">Valor mínimo exigido para permanência após resgates.</param>
     /// <param name="statusCaptacao">Status indicando se o fundo recebe captação.</param>
-    public Fundo(string nome, TimeSpan horarioCorte, decimal valorCota, decimal valorMinimoAporte, decimal valorMinimoPermanencia, StatusCaptacao statusCaptacao)
+    public Fundo(string nome, TimeOnly horarioCorte, decimal valorCota, decimal valorMinimoAporte, decimal valorMinimoPermanencia, StatusCaptacao statusCaptacao)
     {
         Id = Guid.CreateVersion7();
         Nome = nome;
@@ -99,7 +99,7 @@ public class Fundo
     /// </summary>
     /// <param name="horaAtual">O horário exato em que a solicitação de ordem está sendo processada.</param>
     /// <returns>Um <see cref="Result"/> indicando sucesso ou informando que o horário limite foi excedido.</returns>
-    public Result DentroDoHorarioDeCorte(TimeSpan horaAtual)
+    public Result DentroDoHorarioDeCorte(TimeOnly horaAtual)
     {
         if (horaAtual > HorarioCorte)
         {
