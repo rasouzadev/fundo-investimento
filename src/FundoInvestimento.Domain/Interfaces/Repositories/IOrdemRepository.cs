@@ -16,12 +16,15 @@ public interface IOrdemRepository
     Task<Ordem?> ObterPorIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Lista todo o histórico de ordens associadas a um determinado cliente.
+    /// Obtém o histórico de ordens com base em filtros dinâmicos, garantindo a ordenação da mais recente para a mais antiga.
     /// </summary>
-    /// <param name="idCliente">O id do cliente.</param>
+    /// <param name="idCliente">Filtro opcional. Se preenchido, retorna apenas as ordens do cliente especificado.</param>
+    /// <param name="idFundo">Filtro opcional. Se preenchido, retorna apenas as ordens direcionadas ao fundo especificado.</param>
+    /// <param name="inicio">Filtro opcional. Data inicial (inclusiva) para limitar a busca pelo período de criação da ordem.</param>
+    /// <param name="fim">Filtro opcional. Data final (inclusiva) para limitar a busca pelo período de criação da ordem.</param>
     /// <param name="cancellationToken">Token para cancelamento assíncrono da operação.</param>
-    /// <returns>Uma <see cref="Task"/> contendo uma coleção enumerável das ordens do cliente.</returns>
-    Task<IEnumerable<Ordem>> ObterPorClienteIdAsync(Guid idCliente, CancellationToken cancellationToken = default);
+    /// <returns>Uma coleção de entidades <see cref="Ordem"/> que correspondem aos critérios de busca fornecidos.</returns>
+    Task<IEnumerable<Ordem>> ObterHistoricoAsync(Guid? idCliente, Guid? idFundo, DateOnly? inicio, DateOnly? fim, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Insere uma nova solicitação de ordem (imediata ou agendada) no banco de dados.

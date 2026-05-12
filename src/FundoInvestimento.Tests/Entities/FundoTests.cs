@@ -8,17 +8,20 @@ namespace FundoInvestimento.Tests.Entities;
 public class FundoTests
 {
     [Theory]
-    [InlineData(100, 100, StatusCaptacao.ABERTO, true)]  // Valor igual ao mínimo em fundo aberto
-    [InlineData(150, 100, StatusCaptacao.ABERTO, true)]  // Valor maior que mínimo em fundo aberto
-    [InlineData(99, 100, StatusCaptacao.ABERTO, false)]  // Valor menor que mínimo em fundo aberto
+    [InlineData(100, 100, StatusCaptacao.ABERTO, true)]   // Valor igual ao mínimo em fundo aberto
+    [InlineData(150, 100, StatusCaptacao.ABERTO, true)]   // Valor maior que mínimo em fundo aberto
+    [InlineData(99, 100, StatusCaptacao.ABERTO, false)]   // Valor menor que mínimo em fundo aberto
     [InlineData(100, 100, StatusCaptacao.FECHADO, false)] // Fundo fechado
     public void AceitaAporte_DeveRetornarEsperado_BaseadoNoStatusEValorMinimo(
-        decimal valorAporte, decimal valorMinimoAporte, StatusCaptacao status, bool deveSerSucesso)
+        decimal valorAporte,
+        decimal valorMinimoAporte,
+        StatusCaptacao status,
+        bool deveSerSucesso)
     {
         // Arrange
         var fundo = new Fundo(
             nome: "Fundo Teste",
-            horarioCorte: new TimeSpan(14, 0, 0),
+            horarioCorte: new TimeOnly(14, 0, 0),
             valorCota: 10,
             valorMinimoAporte: valorMinimoAporte,
             valorMinimoPermanencia: 50,
@@ -32,17 +35,25 @@ public class FundoTests
     }
 
     [Theory]
-    [InlineData("13:59:59", "14:00:00", true)]  // Antes do horário
-    [InlineData("14:00:00", "14:00:00", true)]  // Horário limite exato
-    [InlineData("14:00:01", "14:00:00", false)] // Um segundo depois do horário
+    [InlineData("13:59:59", "14:00:00", true)]   // Antes do horário
+    [InlineData("14:00:00", "14:00:00", true)]   // Horário limite exato
+    [InlineData("14:00:01", "14:00:00", false)]  // Um segundo depois do horário
     public void DentroDoHorarioDeCorte_DeveRetornarEsperado_BaseadoNoHorario(
-        string horaAtualStr, string horarioCorteStr, bool deveSerSucesso)
+        string horaAtualStr,
+        string horarioCorteStr,
+        bool deveSerSucesso)
     {
         // Arrange
-        var horaAtual = TimeSpan.Parse(horaAtualStr);
-        var horarioCorte = TimeSpan.Parse(horarioCorteStr);
+        var horaAtual = TimeOnly.Parse(horaAtualStr);
+        var horarioCorte = TimeOnly.Parse(horarioCorteStr);
 
-        var fundo = new Fundo("Fundo Teste", horarioCorte, 10m, 100m, 50m, StatusCaptacao.ABERTO);
+        var fundo = new Fundo(
+            nome: "Fundo Teste",
+            horarioCorte: horarioCorte,
+            valorCota: 10m,
+            valorMinimoAporte: 100m,
+            valorMinimoPermanencia: 50m,
+            statusCaptacao: StatusCaptacao.ABERTO);
 
         // Act
         var resultado = fundo.DentroDoHorarioDeCorte(horaAtual);
@@ -52,17 +63,20 @@ public class FundoTests
     }
 
     [Theory]
-    [InlineData(100, 100, 50, true)]  // Resgate total (Saldo zero é sempre permitido)
-    [InlineData(100, 50, 50, true)]   // Resgate parcial, saldo remanescente igual ao mínimo exigido
-    [InlineData(100, 40, 50, true)]   // Resgate parcial, saldo remanescente maior que o mínimo exigido
-    [InlineData(100, 60, 50, false)]  // Resgate parcial, saldo remanescente (40) menor que mínimo (50)
+    [InlineData(100, 100, 50, true)]  // Resgate total (saldo zero é permitido)
+    [InlineData(100, 50, 50, true)]   // Saldo remanescente igual ao mínimo
+    [InlineData(100, 40, 50, true)]   // Saldo remanescente maior que o mínimo
+    [InlineData(100, 60, 50, false)]  // Saldo remanescente menor que o mínimo
     public void ResgateDeixaSaldoValido_DeveRetornarEsperado_BaseadoNoSaldoRemanescente(
-        decimal saldoAtual, decimal valorResgate, decimal valorMinimoPermanencia, bool deveSerSucesso)
+        decimal saldoAtual,
+        decimal valorResgate,
+        decimal valorMinimoPermanencia,
+        bool deveSerSucesso)
     {
         // Arrange
         var fundo = new Fundo(
             nome: "Fundo Teste",
-            horarioCorte: new TimeSpan(14, 0, 0),
+            horarioCorte: new TimeOnly(14, 0, 0),
             valorCota: 10,
             valorMinimoAporte: 100,
             valorMinimoPermanencia: valorMinimoPermanencia,

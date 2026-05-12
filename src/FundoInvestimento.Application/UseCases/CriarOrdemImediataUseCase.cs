@@ -119,7 +119,11 @@ public class CriarOrdemImediataUseCase : ICriarOrdemImediataUseCase
             return Result<OrdemResponse>.Success(new OrdemResponse
             {
                 Id = ordem.Id,
+                IdCliente = ordem.IdCliente,
+                IdFundo = ordem.IdFundo,
                 TipoOperacao = ordem.TipoOperacao,
+                QuantidadeCotas = ordem.QuantidadeCotas,
+                DataAgendamento = ordem.DataAgendamento,
                 Status = ordem.Status,
                 CriadoEm = ordem.CriadoEm
             });

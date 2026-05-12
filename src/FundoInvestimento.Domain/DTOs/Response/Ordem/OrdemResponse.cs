@@ -9,8 +9,20 @@ public class OrdemResponse
     [Description("Identificador único gerado para a ordem.")]
     public Guid Id { get; set; }
 
+    [Description("Identificador único do cliente solicitante.")]
+    public Guid IdCliente { get; set; }
+
+    [Description("Identificador único do fundo alvo da operação.")]
+    public Guid IdFundo { get; set; }
+
     [Description("Tipo da operação que foi processada.")]
     public TipoOperacao TipoOperacao { get; set; }
+
+    [Description("Quantidade de cotas envolvidas na transação.")]
+    public int QuantidadeCotas { get; set; }
+
+    [Description("Data futura programada para a execução da ordem (nulo para ordens imediatas).")]
+    public DateOnly? DataAgendamento { get; set; }
 
     [Description("Status atual da ordem após o processamento.")]
     public StatusOrdem Status { get; set; }

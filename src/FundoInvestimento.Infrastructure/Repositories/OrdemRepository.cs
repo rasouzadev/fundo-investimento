@@ -3,6 +3,7 @@ using FundoInvestimento.Domain.Entities;
 using FundoInvestimento.Domain.Interfaces.Repositories;
 using FundoInvestimento.Infrastructure.Data;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 
 namespace FundoInvestimento.Infrastructure.Repositories;
 
@@ -48,28 +49,58 @@ public class OrdemRepository : IOrdemRepository
     }
 
     /// <inheritdoc/>
-    public async Task<IEnumerable<Ordem>> ObterPorClienteIdAsync(Guid idCliente, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<Ordem>> ObterHistoricoAsync(
+        Guid? idCliente,
+        Guid? idFundo,
+        DateOnly? inicio,
+        DateOnly? fim,
+        CancellationToken cancellationToken = default)
     {
-        const string sql = @"
-            SELECT id AS Id, 
-                   id_cliente AS IdCliente, 
-                   id_fundo AS IdFundo, 
-                   tipo_operacao AS TipoOperacao, 
-                   quantidade_cotas AS QuantidadeCotas, 
-                   data_agendamento AS DataAgendamento, 
-                   status AS Status, 
-                   criado_em AS CriadoEm
-            FROM ordem 
-            WHERE id_cliente = @IdCliente
-            ORDER BY criado_em DESC;";
+        var sql = new StringBuilder(@"
+        SELECT 
+            id AS Id, 
+            id_cliente AS IdCliente, 
+            id_fundo AS IdFundo, 
+            tipo_operacao AS TipoOperacao, 
+            quantidade_cotas AS QuantidadeCotas, 
+            data_agendamento AS DataAgendamento, 
+            status AS Status, 
+            criado_em AS CriadoEm 
+        FROM ordem 
+        WHERE 1=1 ");
 
-        var command = new CommandDefinition(
-            sql,
-            new { IdCliente = idCliente },
-            _session.Transaction,
-            cancellationToken: cancellationToken);
+        var parameters = new DynamicParameters();
 
-        return await _session.Connection.QueryAsync<Ordem>(command);
+        if (idCliente.HasValue)
+        {
+            sql.Append("AND id_cliente = @IdCliente ");
+            parameters.Add("IdCliente", idCliente);
+        }
+
+        if (idFundo.HasValue)
+        {
+            sql.Append("AND id_fundo = @IdFundo ");
+            parameters.Add("IdFundo", idFundo);
+        }
+
+        if (inicio.HasValue)
+        {
+            sql.Append("AND criado_em >= @Inicio ");
+            parameters.Add("Inicio", inicio.Value.ToDateTime(TimeOnly.MinValue));
+        }
+
+        if (fim.HasValue)
+        {
+            sql.Append("AND criado_em <= @Fim ");
+            parameters.Add("Fim", fim.Value.ToDateTime(TimeOnly.MaxValue));
+        }
+
+        sql.Append("ORDER BY criado_em DESC");
+
+        return await _session.Connection.QueryAsync<Ordem>(
+            sql.ToString(),
+            parameters,
+            _session.Transaction);
     }
 
     /// <inheritdoc/>

@@ -127,6 +127,8 @@ public static class ServiceCollectionExtensions
     private static IServiceCollection AddUseCases(this IServiceCollection services)
     {
         services.AddScoped<ICriarOrdemImediataUseCase, CriarOrdemImediataUseCase>();
+        services.AddScoped<IObterOrdensUseCase, ObterOrdensUseCase>();
+
         return services;
     }
 }

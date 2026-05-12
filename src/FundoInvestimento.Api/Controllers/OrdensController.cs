@@ -1,4 +1,5 @@
-﻿using FundoInvestimento.Domain.DTOs.Requests.Ordem;
+﻿using FundoInvestimento.Application.UseCases;
+using FundoInvestimento.Domain.DTOs.Requests.Ordem;
 using FundoInvestimento.Domain.DTOs.Response.Ordem;
 using FundoInvestimento.Domain.Interfaces.UseCases;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +13,12 @@ namespace FundoInvestimento.Api.Controllers;
 public class OrdensController : BaseController
 {
     private readonly ICriarOrdemImediataUseCase _criarOrdemImediataUseCase;
+    private readonly IObterOrdensUseCase _obterOrdensUseCase;
 
-    public OrdensController(ICriarOrdemImediataUseCase criarOrdemImediataUseCase)
+    public OrdensController(ICriarOrdemImediataUseCase criarOrdemImediataUseCase, IObterOrdensUseCase obterOrdensUseCase)
     {
         _criarOrdemImediataUseCase = criarOrdemImediataUseCase;
+        _obterOrdensUseCase = obterOrdensUseCase;
     }
 
     /// <summary>
@@ -32,6 +35,20 @@ public class OrdensController : BaseController
     {
         var result = await _criarOrdemImediataUseCase.ExecuteAsync(request, cancellationToken);
 
+        return CustomResponse(result);
+    }
+
+    /// <summary>
+    /// Recupera o histórico de ordens com base nos filtros fornecidos.
+    /// </summary>
+    /// <param name="filtro">DTO contendo filtros por cliente, fundo e período.</param>
+    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
+    /// <returns>Uma coleção de ordens que atendem aos critérios de busca.</returns>
+    [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<OrdemResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListarOrdens([FromQuery] ListarOrdensRequest filtro, CancellationToken cancellationToken)
+    {
+        var result = await _obterOrdensUseCase.ExecuteAsync(filtro, cancellationToken);
         return CustomResponse(result);
     }
 }
