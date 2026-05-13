@@ -129,6 +129,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICriarOrdemImediataUseCase, CriarOrdemImediataUseCase>();
         services.AddScoped<IObterOrdensUseCase, ObterOrdensUseCase>();
         services.AddScoped<IObterFundosUseCase, ObterFundosUseCase>();
+        services.AddScoped<IObterPosicaoConsolidadaUseCase, ObterPosicaoConsolidadaUseCase>();
 
         return services;
     }

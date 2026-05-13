@@ -87,4 +87,24 @@ public class PosicaoClienteRepository : IPosicaoClienteRepository
 
         await _session.Connection.ExecuteAsync(command);
     }
+
+    /// <inheritdoc/>
+    public async Task<IEnumerable<PosicaoDetalhadaReadModel>> ObterPosicaoConsolidadaAsync(Guid idCliente, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT 
+                pc.id_fundo AS IdFundo,
+                f.nome AS NomeFundo,
+                pc.quantidade_cotas AS QuantidadeCotas,
+                f.valor_cota AS ValorCota
+            FROM posicao_cliente pc
+            INNER JOIN fundo f ON f.id = pc.id_fundo
+            WHERE pc.id_cliente = @IdCliente 
+              AND pc.quantidade_cotas > 0";
+
+        return await _session.Connection.QueryAsync<PosicaoDetalhadaReadModel>(
+            sql,
+            new { IdCliente = idCliente },
+            _session.Transaction);
+    }
 }

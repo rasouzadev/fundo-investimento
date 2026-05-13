@@ -31,4 +31,12 @@ public interface IPosicaoClienteRepository
     /// <param name="cancellationToken">Token para cancelamento assíncrono da operação.</param>
     /// <returns>Uma <see cref="Task"/> que representa a conclusão da operação de atualização.</returns>
     Task AtualizarAsync(PosicaoCliente posicao, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Obtém a posição consolidada de um cliente, trazendo os detalhes do fundo através de um JOIN.
+    /// </summary>
+    /// <param name="idCliente">O id do cliente.</param>
+    /// <param name="cancellationToken">Token para cancelamento assíncrono da operação.</param>
+    /// <returns>Uma <see cref="Task"/> contendo uma coleção de <see cref="PosicaoDetalhadaReadModel"/></returns>
+    Task<IEnumerable<PosicaoDetalhadaReadModel>> ObterPosicaoConsolidadaAsync(Guid idCliente, CancellationToken cancellationToken = default);
 }
