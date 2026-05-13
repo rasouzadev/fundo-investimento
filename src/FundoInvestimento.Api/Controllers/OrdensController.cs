@@ -14,11 +14,13 @@ public class OrdensController : BaseController
 {
     private readonly ICriarOrdemImediataUseCase _criarOrdemImediataUseCase;
     private readonly IObterOrdensUseCase _obterOrdensUseCase;
+    private readonly IAgendarOrdemUseCase _agendarOrdemUseCase;
 
-    public OrdensController(ICriarOrdemImediataUseCase criarOrdemImediataUseCase, IObterOrdensUseCase obterOrdensUseCase)
+    public OrdensController(ICriarOrdemImediataUseCase criarOrdemImediataUseCase, IObterOrdensUseCase obterOrdensUseCase, IAgendarOrdemUseCase agendarOrdemUseCase)
     {
         _criarOrdemImediataUseCase = criarOrdemImediataUseCase;
         _obterOrdensUseCase = obterOrdensUseCase;
+        _agendarOrdemUseCase = agendarOrdemUseCase;
     }
 
     /// <summary>
@@ -35,7 +37,7 @@ public class OrdensController : BaseController
     {
         var result = await _criarOrdemImediataUseCase.ExecuteAsync(request, cancellationToken);
 
-        return CustomResponse(result);
+        return CustomResponse(result, StatusCodes.Status201Created);
     }
 
     /// <summary>
@@ -50,5 +52,22 @@ public class OrdensController : BaseController
     {
         var result = await _obterOrdensUseCase.ExecuteAsync(filtro, cancellationToken);
         return CustomResponse(result);
+    }
+
+    /// <summary>
+    /// Registra o agendamento de uma ordem de aporte ou resgate para uma data futura.
+    /// </summary>
+    /// <param name="request">Os dados do agendamento, incluindo a data alvo.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>A ordem criada com o status PENDENTE.</returns>
+    [HttpPost("agendamentos")]
+    [ProducesResponseType(typeof(OrdemResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> AgendarOrdem([FromBody] AgendarOrdemRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _agendarOrdemUseCase.ExecuteAsync(request, cancellationToken);
+
+        return CustomResponse(result, StatusCodes.Status201Created);
     }
 }

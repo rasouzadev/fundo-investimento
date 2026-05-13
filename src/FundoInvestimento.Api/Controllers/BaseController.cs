@@ -7,40 +7,60 @@ namespace FundoInvestimento.Api.Controllers;
 public abstract class BaseController : ControllerBase
 {
     /// <summary>
-    /// Converte um CustomError do domínio em uma resposta HTTP padronizada (ProblemDetails).
+    /// Traduz o Result do domínio para uma resposta HTTP correspondente (RFC 7807 para erros).
     /// </summary>
-    protected IActionResult CustomResponse(CustomError error)
+    /// <param name="result">O resultado da operação (Sucesso ou Falha).</param>
+    /// <param name="successStatusCode">O HTTP Status Code desejado em caso de sucesso (Padrão: 200 OK).</param>
+    protected IActionResult CustomResponse<T>(Result<T> result, int successStatusCode = StatusCodes.Status200OK)
     {
-        return Problem(
-            statusCode: error.StatusCode,
-            title: error.Code,
-            detail: error.Message
-        );
+        if (result.IsFailure)
+        {
+            var error = result.GetError();
+            
+            var problemDetails = new ProblemDetails
+            {
+                Status = error.StatusCode,
+                Title = error.Code,
+                Detail = error.Message,
+                Instance = HttpContext.Request.Path
+            };
+
+            return StatusCode(error.StatusCode, problemDetails);
+        }
+
+        return successStatusCode switch
+        {
+            StatusCodes.Status201Created => StatusCode(StatusCodes.Status201Created, result.GetSuccess()),
+            StatusCodes.Status204NoContent => NoContent(),
+            _ => Ok(result.GetSuccess())
+        };
     }
 
     /// <summary>
-    /// Manipula o retorno do Result Pattern. Se sucesso, devolve 200 OK. Se falha, devolve o erro formatado.
+    /// Overload para Results que não possuem retorno de dados.
     /// </summary>
-    protected IActionResult CustomResponse<T>(Result<T> result)
+    protected IActionResult CustomResponse(Result result, int successStatusCode = StatusCodes.Status200OK)
     {
-        if (result.IsSuccess)
+        if (result.IsFailure)
         {
-            return Ok(result.GetSuccess());
+            var error = result.GetError();
+
+            var problemDetails = new ProblemDetails
+            {
+                Status = error.StatusCode,
+                Title = error.Code,
+                Detail = error.Message,
+                Instance = HttpContext.Request.Path
+            };
+
+            return StatusCode(error.StatusCode, problemDetails);
         }
 
-        return CustomResponse(result.GetError());
-    }
-
-    /// <summary>
-    /// Manipula o retorno do Result Pattern sem payload de dados (para métodos void/Task).
-    /// </summary>
-    protected IActionResult CustomResponse(Result result)
-    {
-        if (result.IsSuccess)
+        return successStatusCode switch
         {
-            return NoContent();
-        }
-
-        return CustomResponse(result.GetError());
+            StatusCodes.Status201Created => StatusCode(StatusCodes.Status201Created),
+            StatusCodes.Status204NoContent => NoContent(),
+            _ => Ok()
+        };
     }
 }
