@@ -5,6 +5,9 @@ using FundoInvestimento.Domain.Entities;
 using FundoInvestimento.Domain.Enums;
 using FundoInvestimento.Domain.Interfaces.Data;
 using FundoInvestimento.Domain.Interfaces.Repositories;
+using FundoInvestimento.Domain.Interfaces.Strategies;
+using FundoInvestimento.Libs.Utils;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Moq;
 using System.Diagnostics.CodeAnalysis;
@@ -14,10 +17,14 @@ namespace FundoInvestimento.Tests.Application.UseCases;
 [ExcludeFromCodeCoverage]
 public class AgendarOrdemUseCaseTests
 {
-    private readonly Mock<IClienteRepository> _clienteRepositoryMock;
-    private readonly Mock<IFundoRepository> _fundoRepositoryMock;
-    private readonly Mock<IOrdemRepository> _ordemRepositoryMock;
-    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
+    private readonly Mock<IClienteRepository> _clienteRepoMock;
+    private readonly Mock<IFundoRepository> _fundoRepoMock;
+    private readonly Mock<IPosicaoClienteRepository> _posicaoRepoMock;
+    private readonly Mock<IOrdemRepository> _ordemRepoMock;
+    private readonly Mock<IProcessadorOperacaoStrategy> _aporteStrategyMock;
+    private readonly Mock<IProcessadorOperacaoStrategy> _resgateStrategyMock;
+    private readonly Mock<IUnitOfWork> _uowMock;
+    private readonly Mock<ILogger<AgendarOrdemUseCase>> _loggerMock;
     private readonly FakeTimeProvider _timeProvider;
     private readonly AgendarOrdemUseCase _useCase;
     private readonly IFixture _fixture;
@@ -27,37 +34,115 @@ public class AgendarOrdemUseCaseTests
     public AgendarOrdemUseCaseTests()
     {
         _fixture = new Fixture();
-        _fixture.Register(() =>
-        {
-            var random = new Random();
 
-            return new DateOnly(
-                year: random.Next(2000, 2100),
-                month: random.Next(1, 13),
-                day: random.Next(1, 28));
-        });
-        _fixture.Register(() =>
-        {
-            var random = new Random();
+        _clienteRepoMock = new Mock<IClienteRepository>();
+        _fundoRepoMock = new Mock<IFundoRepository>();
+        _posicaoRepoMock = new Mock<IPosicaoClienteRepository>();
+        _ordemRepoMock = new Mock<IOrdemRepository>();
+        _uowMock = new Mock<IUnitOfWork>();
+        _loggerMock = new Mock<ILogger<AgendarOrdemUseCase>>();
 
-            return new TimeOnly(
-                hour: random.Next(0, 24),
-                minute: random.Next(0, 60),
-                second: random.Next(0, 60));
-        });
-        _clienteRepositoryMock = new Mock<IClienteRepository>();
-        _fundoRepositoryMock = new Mock<IFundoRepository>();
-        _ordemRepositoryMock = new Mock<IOrdemRepository>();
-        _unitOfWorkMock = new Mock<IUnitOfWork>();
+        _aporteStrategyMock = new Mock<IProcessadorOperacaoStrategy>();
+        _aporteStrategyMock.SetupGet(s => s.TipoOperacao).Returns(TipoOperacao.APORTE);
+
+        _resgateStrategyMock = new Mock<IProcessadorOperacaoStrategy>();
+        _resgateStrategyMock.SetupGet(s => s.TipoOperacao).Returns(TipoOperacao.RESGATE);
+
+        var processadores = new List<IProcessadorOperacaoStrategy>
+        {
+            _aporteStrategyMock.Object,
+            _resgateStrategyMock.Object
+        };
+
         _timeProvider = new FakeTimeProvider();
         _timeProvider.SetUtcNow(_dataAtualFixa);
 
         _useCase = new AgendarOrdemUseCase(
-            _clienteRepositoryMock.Object,
-            _fundoRepositoryMock.Object,
-            _ordemRepositoryMock.Object,
-            _unitOfWorkMock.Object,
-            _timeProvider);
+            _clienteRepoMock.Object,
+            _fundoRepoMock.Object,
+            _posicaoRepoMock.Object,
+            _ordemRepoMock.Object,
+            processadores,
+            _uowMock.Object,
+            _timeProvider,
+            _loggerMock.Object);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DeveRetornarFalha404_QuandoFundoNaoExistir()
+    {
+        // Arrange
+        var request = _fixture.Build<AgendarOrdemRequest>()
+            .With(r => r.DataAgendamento, DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(1)))
+            .Create();
+        _fundoRepoMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync((Fundo?)null);
+
+        // Act
+        var result = await _useCase.ExecuteAsync(request);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(404, result.GetError().StatusCode);
+        Assert.Equal("FUNDO_NAO_ENCONTRADO", result.GetError().Code);
+
+        _uowMock.Verify(u => u.BeginTransaction(), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DeveRetornarFalha404_EFazerRollback_QuandoClienteNaoExistir()
+    {
+        // Arrange
+        var request = _fixture.Build<AgendarOrdemRequest>()
+            .With(r => r.TipoOperacao, TipoOperacao.APORTE)
+            .With(r => r.DataAgendamento, DateOnly.FromDateTime(DateTime.Today))
+            .Create();
+
+        var fundoMock = new Fundo("Fundo Teste", new TimeOnly(14, 0), 10m, 100m, 0m, StatusCaptacao.ABERTO);
+
+        _fundoRepoMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync(fundoMock);
+        _clienteRepoMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync((Cliente?)null);
+
+        // Act
+        var result = await _useCase.ExecuteAsync(request);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal(404, result.GetError().StatusCode);
+        Assert.Equal("CLIENTE_NAO_ENCONTRADO", result.GetError().Code);
+
+        _uowMock.Verify(u => u.BeginTransaction(), Times.Once);
+        _uowMock.Verify(u => u.Rollback(), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DeveRetornarFalha_EFazerRollback_QuandoAStrategyRejeitarOAgendamento()
+    {
+        // Arrange
+        var request = _fixture.Build<AgendarOrdemRequest>()
+            .With(r => r.TipoOperacao, TipoOperacao.APORTE)
+            .With(r => r.DataAgendamento, DateOnly.FromDateTime(DateTime.Now))
+            .Create();
+
+        var clienteMock = new Cliente("Joao", "123", 0m);
+        var fundoMock = new Fundo("Fundo Teste", new TimeOnly(14, 0), 10m, 100m, 0m, StatusCaptacao.ABERTO);
+
+        _fundoRepoMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync(fundoMock);
+        _clienteRepoMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync(clienteMock);
+
+        _aporteStrategyMock
+            .Setup(s => s.CriarAgendamento(It.IsAny<Cliente>(), It.IsAny<Fundo>(), It.IsAny<PosicaoCliente?>(), It.IsAny<int>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .Returns(Result<Ordem>.Failure(new CustomError("DATA_AGENDAMENTO_INVALIDA", "Erro na data", 422)));
+
+        // Act
+        var result = await _useCase.ExecuteAsync(request);
+
+        // Assert
+        Assert.True(result.IsFailure);
+        Assert.Equal("DATA_AGENDAMENTO_INVALIDA", result.GetError().Code);
+
+        _uowMock.Verify(u => u.BeginTransaction(), Times.Once);
+        _uowMock.Verify(u => u.Rollback(), Times.Once);
+        _ordemRepoMock.Verify(r => r.AdicionarAsync(It.IsAny<Ordem>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -66,14 +151,21 @@ public class AgendarOrdemUseCaseTests
         // Arrange
         var request = _fixture.Build<AgendarOrdemRequest>()
             .With(r => r.QuantidadeCotas, 10)
+            .With(r => r.TipoOperacao, TipoOperacao.APORTE)
             .With(r => r.DataAgendamento, new DateOnly(2026, 5, 15))
             .Create();
 
-        var clienteMock = _fixture.Build<Cliente>().With(c => c.Id, request.IdCliente).Create();
-        var fundoMock = _fixture.Build<Fundo>().With(f => f.Id, request.IdFundo).Create();
+        var clienteMock = new Cliente("Joao", "123", 0m);
+        var fundoMock = new Fundo("Fundo Teste", new TimeOnly(14, 0), 10m, 100m, 0m, StatusCaptacao.ABERTO);
 
-        _clienteRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync(clienteMock);
-        _fundoRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync(fundoMock);
+        var ordemCriada = Ordem.CriarAgendada(request.IdCliente, request.IdFundo, TipoOperacao.APORTE, request.QuantidadeCotas, request.DataAgendamento, new DateOnly(2026, 5, 12)).GetSuccess();
+
+        _fundoRepoMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync(fundoMock);
+        _clienteRepoMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync(clienteMock);
+
+        _aporteStrategyMock
+            .Setup(s => s.CriarAgendamento(It.IsAny<Cliente>(), It.IsAny<Fundo>(), It.IsAny<PosicaoCliente?>(), It.IsAny<int>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .Returns(Result<Ordem>.Success(ordemCriada));
 
         // Act
         var result = await _useCase.ExecuteAsync(request);
@@ -85,98 +177,41 @@ public class AgendarOrdemUseCaseTests
         Assert.Equal(StatusOrdem.PENDENTE, response.Status);
         Assert.Equal(request.DataAgendamento, response.DataAgendamento);
 
-        _unitOfWorkMock.Verify(u => u.BeginTransaction(), Times.Once);
-        _ordemRepositoryMock.Verify(r => r.AdicionarAsync(It.IsAny<Ordem>(), It.IsAny<CancellationToken>()), Times.Once);
-        _unitOfWorkMock.Verify(u => u.Commit(), Times.Once);
-        _unitOfWorkMock.Verify(u => u.Rollback(), Times.Never);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_DeveRetornarFalha_QuandoDataAgendamentoForNoPassadoOuPresente()
-    {
-        // Arrange
-        var request = _fixture.Build<AgendarOrdemRequest>()
-            .With(r => r.QuantidadeCotas, 10)
-            .With(r => r.DataAgendamento, new DateOnly(2026, 5, 12))
-            .Create();
-
-        var clienteMock = _fixture.Build<Cliente>().With(c => c.Id, request.IdCliente).Create();
-        var fundoMock = _fixture.Build<Fundo>().With(f => f.Id, request.IdFundo).Create();
-
-        _clienteRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync(clienteMock);
-        _fundoRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync(fundoMock);
-
-        // Act
-        var result = await _useCase.ExecuteAsync(request);
-
-        // Assert
-        Assert.True(result.IsFailure);
-        Assert.Equal(422, result.GetError().StatusCode);
-        Assert.Equal("DATA_AGENDAMENTO_INVALIDA", result.GetError().Code);
-
-        _unitOfWorkMock.Verify(u => u.BeginTransaction(), Times.Never);
-        _ordemRepositoryMock.Verify(r => r.AdicionarAsync(It.IsAny<Ordem>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uowMock.Verify(u => u.BeginTransaction(), Times.Once);
+        _ordemRepoMock.Verify(r => r.AdicionarAsync(ordemCriada, It.IsAny<CancellationToken>()), Times.Once);
+        _uowMock.Verify(u => u.Commit(), Times.Once);
     }
 
     [Fact]
     public async Task ExecuteAsync_DeveFazerRollbackERelancarExcecao_QuandoPersistenciaFalhar()
     {
         // Arrange
-        var request = _fixture.Build<AgendarOrdemRequest>()
-            .With(r => r.QuantidadeCotas, 10)
+        var request = _fixture
+            .Build<AgendarOrdemRequest>()
+            .With(r => r.TipoOperacao, TipoOperacao.APORTE)
             .With(r => r.DataAgendamento, new DateOnly(2026, 5, 15))
             .Create();
 
-        var clienteMock = _fixture.Build<Cliente>().Create();
-        var fundoMock = _fixture.Build<Fundo>().Create();
+        var clienteMock = new Cliente("Joao", "123", 0m);
+        var fundoMock = new Fundo("Fundo Teste", new TimeOnly(14, 0), 10m, 100m, 0m, StatusCaptacao.ABERTO);
+        var ordemCriada = Ordem.CriarAgendada(request.IdCliente, request.IdFundo, TipoOperacao.APORTE, 10, new DateOnly(2026, 5, 15), new DateOnly(2026, 5, 12)).GetSuccess();
 
-        _clienteRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync(clienteMock);
-        _fundoRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync(fundoMock);
+        _clienteRepoMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync(clienteMock);
+        _fundoRepoMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync(fundoMock);
 
-        _ordemRepositoryMock
+        _aporteStrategyMock
+            .Setup(s => s.CriarAgendamento(It.IsAny<Cliente>(), It.IsAny<Fundo>(), It.IsAny<PosicaoCliente?>(), It.IsAny<int>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .Returns(Result<Ordem>.Success(ordemCriada));
+
+        _ordemRepoMock
             .Setup(r => r.AdicionarAsync(It.IsAny<Ordem>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new Exception("Erro no banco de dados."));
+            .ThrowsAsync(new Exception("Deadlock no banco de dados."));
 
         // Act & Assert
         await Assert.ThrowsAsync<Exception>(() => _useCase.ExecuteAsync(request));
 
-        _unitOfWorkMock.Verify(u => u.BeginTransaction(), Times.Once);
-        _unitOfWorkMock.Verify(u => u.Commit(), Times.Never);
-        _unitOfWorkMock.Verify(u => u.Rollback(), Times.Once);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_DeveRetornarFalha404_QuandoClienteNaoExistir()
-    {
-        // Arrange
-        var request = _fixture.Create<AgendarOrdemRequest>();
-        _clienteRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync((Cliente?)null);
-
-        // Act
-        var result = await _useCase.ExecuteAsync(request);
-
-        // Assert
-        Assert.True(result.IsFailure);
-        Assert.Equal(404, result.GetError().StatusCode);
-        Assert.Equal("CLIENTE_NAO_ENCONTRADO", result.GetError().Code);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_DeveRetornarFalha404_QuandoFundoNaoExistir()
-    {
-        // Arrange
-        var request = _fixture.Create<AgendarOrdemRequest>();
-        var clienteMock = _fixture.Build<Cliente>().Create();
-
-        _clienteRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdCliente, It.IsAny<CancellationToken>())).ReturnsAsync(clienteMock);
-        _fundoRepositoryMock.Setup(r => r.ObterPorIdAsync(request.IdFundo, It.IsAny<CancellationToken>())).ReturnsAsync((Fundo?)null);
-
-        // Act
-        var result = await _useCase.ExecuteAsync(request);
-
-        // Assert
-        Assert.True(result.IsFailure);
-        Assert.Equal(404, result.GetError().StatusCode);
-        Assert.Equal("FUNDO_NAO_ENCONTRADO", result.GetError().Code);
+        _uowMock.Verify(u => u.BeginTransaction(), Times.Once);
+        _uowMock.Verify(u => u.Commit(), Times.Never);
+        _uowMock.Verify(u => u.Rollback(), Times.Once);
     }
 }

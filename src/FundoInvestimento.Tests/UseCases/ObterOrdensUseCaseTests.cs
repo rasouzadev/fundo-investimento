@@ -28,8 +28,8 @@ public class ObterOrdensUseCaseTests
         var fundoId = Guid.NewGuid();
         var request = new ListarOrdensRequest { IdCliente = clienteId, IdFundo = fundoId };
 
-        var ordemAporte = Ordem.CriarImediata(clienteId, fundoId, TipoOperacao.APORTE, 100).GetSuccess();
-        var ordemResgate = Ordem.CriarImediata(clienteId, fundoId, TipoOperacao.RESGATE, 50).GetSuccess();
+        var ordemAporte = Ordem.CriarImediata(clienteId, fundoId, TipoOperacao.APORTE, 100, DateOnly.MaxValue).GetSuccess();
+        var ordemResgate = Ordem.CriarImediata(clienteId, fundoId, TipoOperacao.RESGATE, 50, DateOnly.MaxValue).GetSuccess();
 
         var ordensMock = new List<Ordem> { ordemAporte, ordemResgate };
 
