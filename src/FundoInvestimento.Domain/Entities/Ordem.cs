@@ -81,13 +81,21 @@ public class Ordem
     /// <param name="tipoOperacao">O tipo de operação a ser realizada (Aporte ou Resgate).</param>
     /// <param name="quantidadeCotas">A quantidade de cotas desejada (deve ser maior que zero).</param>
     /// <returns>Um <see cref="Result{Ordem}"/> contendo a instância da ordem se os dados forem válidos, ou um erro de validação.</returns>
-    public static Result<Ordem> CriarImediata(Guid idCliente, Guid idFundo, TipoOperacao tipoOperacao, int quantidadeCotas)
+    public static Result<Ordem> CriarImediata(Guid idCliente, Guid idFundo, TipoOperacao tipoOperacao, int quantidadeCotas, DateOnly dataAtual)
     {
         if (quantidadeCotas <= 0)
         {
             return Result<Ordem>.Failure(new CustomError(
                 code: "QUANTIDADE_COTAS_INVALIDA",
                 message: "A quantidade de cotas para a ordem deve ser maior que zero.",
+                statusCode: 422));
+        }
+
+        if (dataAtual.DayOfWeek == DayOfWeek.Saturday || dataAtual.DayOfWeek == DayOfWeek.Sunday)
+        {
+            return Result<Ordem>.Failure(new CustomError(
+                code: "DATA_FIM_DE_SEMANA",
+                message: "Aportes são permitidos apenas para dias úteis (segunda a sexta-feira).",
                 statusCode: 422));
         }
 
@@ -120,6 +128,14 @@ public class Ordem
             return Result<Ordem>.Failure(new CustomError(
                 code: "DATA_AGENDAMENTO_INVALIDA",
                 message: "A data de agendamento deve ser no futuro (maior que a data atual).",
+                statusCode: 422));
+        }
+
+        if (dataAgendamento.DayOfWeek == DayOfWeek.Saturday || dataAgendamento.DayOfWeek == DayOfWeek.Sunday)
+        {
+            return Result<Ordem>.Failure(new CustomError(
+                code: "DATA_AGENDAMENTO_FIM_DE_SEMANA",
+                message: "Agendamentos são permitidos apenas para dias úteis (segunda a sexta-feira).",
                 statusCode: 422));
         }
 

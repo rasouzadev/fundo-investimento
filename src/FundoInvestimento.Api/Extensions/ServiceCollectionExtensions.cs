@@ -1,7 +1,9 @@
 using Dapper;
+using FundoInvestimento.Application.Strategies;
 using FundoInvestimento.Application.UseCases;
 using FundoInvestimento.Domain.Interfaces.Data;
 using FundoInvestimento.Domain.Interfaces.Repositories;
+using FundoInvestimento.Domain.Interfaces.Strategies;
 using FundoInvestimento.Domain.Interfaces.UseCases;
 using FundoInvestimento.Infrastructure.Data;
 using FundoInvestimento.Infrastructure.Data.Handlers;
@@ -28,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.AddDatabaseConnection(configuration);
         services.AddRepositories();
         services.AddUseCases();
+        services.AddStrategies();
 
         return services;
     }
@@ -133,6 +136,18 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IObterSaldoClienteUseCase, ObterSaldoClienteUseCase>();
         services.AddScoped<IDepositarSaldoUseCase, DepositarSaldoUseCase>();
         services.AddScoped<IAgendarOrdemUseCase, AgendarOrdemUseCase>();
+
+        return services;
+    }
+
+
+    /// <summary>
+    /// Registra as implementações das Strategies para injeção de dependência.
+    /// </summary>
+    private static IServiceCollection AddStrategies(this IServiceCollection services)
+    {
+        services.AddScoped<IProcessadorOperacaoStrategy, ProcessadorAporteStrategy>();
+        services.AddScoped<IProcessadorOperacaoStrategy, ProcessadorResgateStrategy>();
 
         return services;
     }

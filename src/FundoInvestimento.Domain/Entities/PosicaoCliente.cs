@@ -87,4 +87,26 @@ public class PosicaoCliente
         QuantidadeCotas -= quantidade;
         return Result.Success();
     }
+
+    /// <summary>
+    /// Avalia se a posição atual permite o resgate solicitado, cruzando a quantidade de cotas com as regras do fundo (Saldo de Permanência).
+    /// </summary>
+    /// <param name="quantidadeResgate">A quantidade de cotas que se deseja resgatar.</param>
+    /// <param name="fundo">Os dados do fundo alvo para validação de valores monetários.</param>
+    /// <returns>Um Result indicando sucesso ou detalhando a regra violada.</returns>
+    public Result ValidarRegrasDeResgate(int quantidadeResgate, Fundo fundo)
+    {
+        if (!TemCotasSuficientes(quantidadeResgate))
+        {
+            return Result.Failure(new CustomError(
+                code: "COTAS_INSUFICIENTES",
+                message: "O cliente não possui a quantidade de cotas necessária para realizar este resgate.",
+                statusCode: 422));
+        }
+
+        var saldoAtualTotal = QuantidadeCotas * fundo.ValorCota;
+        var valorResgate = quantidadeResgate * fundo.ValorCota;
+
+        return fundo.ResgateDeixaSaldoValido(saldoAtualTotal, valorResgate);
+    }
 }

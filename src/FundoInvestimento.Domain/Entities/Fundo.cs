@@ -95,6 +95,23 @@ public class Fundo
     }
 
     /// <summary>
+    /// Valida se o fundo permite o agendamento de um novo aporte.
+    /// </summary>
+    /// <returns>Um <see cref="Result"/> indicando sucesso ou a violação da regra de negócio.</returns>
+    public Result AceitaAgendamentoAporte()
+    {
+        if (StatusCaptacao == StatusCaptacao.FECHADO)
+        {
+            return Result.Failure(new CustomError(
+                code: "FUNDO_FECHADO",
+                message: "Não é possível agendar aportes em fundo fechado (Capacity atingido).",
+                statusCode: 422));
+        }
+
+        return Result.Success();
+    }
+
+    /// <summary>
     /// Valida se uma operação imediata está sendo solicitada dentro do horário de funcionamento (Cut-off time) do fundo.
     /// </summary>
     /// <param name="horaAtual">O horário exato em que a solicitação de ordem está sendo processada.</param>
@@ -122,7 +139,6 @@ public class Fundo
     {
         var saldoRemanescente = saldoAtual - valorResgate;
 
-        // Se sacou tudo (saldo zero), é válido. Se sobrou dinheiro, tem que ser maior que o mínimo.
         if (saldoRemanescente != 0 && saldoRemanescente < ValorMinimoPermanencia)
         {
             return Result.Failure(new CustomError(
