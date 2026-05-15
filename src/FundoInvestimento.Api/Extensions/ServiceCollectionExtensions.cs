@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddRepositories();
         services.AddUseCases();
         services.AddStrategies();
+        services.AddQuartz();
 
         return services;
     }
