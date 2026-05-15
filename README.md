@@ -66,21 +66,14 @@ A aplicação possui um serviço de `DatabaseInitializer` que executa os scripts
 
 ### Passo a Passo (Ambiente Local)
 
-1. **Suba a infraestrutura (PostgreSQL + Seq para Logs):**
-   Na raiz do projeto, onde está o arquivo `docker-compose.yml`, execute:
+1. **Suba a infraestrutura completa:**
+   Na raiz do projeto, onde está o arquivo `docker-compose.yml`, execute o comando abaixo para compilar a imagem da API e subir todos os serviços em background:
    ```bash
-   docker-compose up -d
-   ```
-   
-2. Execute a API:
-   Navegue até a pasta do projeto da API e inicie a aplicação:
-   ```bash
-   cd src/FundoInvestimento.Api
-   dotnet run
+   docker-compose up --build -d
    ```
 3. Acesse as Ferramentas:
-   API / Swagger: http://localhost:5000/swagger
-   Painel de Logs (Seq): http://localhost:5341
+   API / Scalar: http://localhost:5000/scalar
+   Painel de Logs (Seq): http://localhost:5341 (usuário: admin | senha: admin123)
 
 # Desenho de Solução na Nuvem (AWS)
 
