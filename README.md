@@ -11,6 +11,7 @@ Uma API para gestão de aportes e resgates de um fundo de investimentos fictíci
 * **Polly:** Tratamento de resiliência e políticas de Retry para o banco de dados.
 * **OpenAPI / Scalar:** Para documentação interativa da API.
 * **xUnit, Moq & AutoFixture:** Suíte completa de testes unitários isolados.
+* **Quartz** Para background service (Processamento de ordens agendadas).
 
 ## Estrutura do Projeto
 
