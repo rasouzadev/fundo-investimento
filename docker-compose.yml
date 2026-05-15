@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: fundo_investimento_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: fundoinvestimento
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  seq:
+    image: datalust/seq:latest
+    container_name: fundo_investimento_logs
+    environment:
+      ACCEPT_EULA: Y
+    ports:
+      - "5341:80"
+      - "5342:5341"
+
+volumes:
+  postgres_data:

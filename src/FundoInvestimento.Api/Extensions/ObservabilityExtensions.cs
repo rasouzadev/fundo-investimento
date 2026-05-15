@@ -19,7 +19,8 @@ public static class ObservabilityExtensions
                 .Enrich.FromLogContext()
                 .Enrich.WithMachineName()
                 .Enrich.WithEnvironmentName()
-                .WriteTo.Console(new RenderedCompactJsonFormatter());
+                .WriteTo.Console(new RenderedCompactJsonFormatter())
+                .WriteTo.Seq("http://localhost:5341");
         });
     }
 }
