@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -12,30 +10,49 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fundoinvestimento"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   seq:
     image: datalust/seq:latest
     container_name: fundo_investimento_logs
     environment:
-      ACCEPT_EULA: Y
+      ACCEPT_EULA: "Y"
+      SEQ_FIRSTRUN_ADMINUSERNAME: "admin"
+      SEQ_FIRSTRUN_ADMINPASSWORD: "admin123"
     ports:
       - "5341:80"
       - "5342:5341"
+    volumes:
+      - seq_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: fundo_investimento_api
+    restart: on-failure
     ports:
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
       - ConnectionStrings__Database=Host=postgres;Port=5432;Database=fundoinvestimento;Username=postgres;Password=1234
-      - Seq__ServerUrl=http://seq:80
+      - Seq__ServerUrl=http://seq:5341
     depends_on:
-      - postgres
-      - seq
+      seq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
+  seq_data:
