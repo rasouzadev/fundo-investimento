@@ -4,7 +4,7 @@ using FundoInvestimento.Infrastructure.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
-builder.Host.AddCustomSerilog();
+builder.Host.AddObservability();
 builder.Services.AddServices(builder.Configuration);
 
 var app = builder.Build();

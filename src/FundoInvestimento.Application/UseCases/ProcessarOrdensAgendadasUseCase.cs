@@ -1,4 +1,5 @@
-﻿using FundoInvestimento.Domain.Entities;
+﻿using FundoInvestimento.Application.Policies;
+using FundoInvestimento.Domain.Entities;
 using FundoInvestimento.Domain.Enums;
 using FundoInvestimento.Domain.Interfaces.Data;
 using FundoInvestimento.Domain.Interfaces.Repositories;
@@ -54,63 +55,74 @@ public class ProcessarOrdensAgendadasUseCase : IProcessarOrdensAgendadasUseCase
 
         foreach (var ordem in ordensPendentes)
         {
-            _unitOfWork.BeginTransaction();
-
             try
             {
-                var fundo = await _fundoRepository.ObterPorIdAsync(ordem.IdFundo, cancellationToken);
-                var cliente = await _clienteRepository.ObterPorIdAsync(ordem.IdCliente, cancellationToken);
-                var posicao = await _posicaoRepository.ObterPorIdAsync(ordem.IdCliente, ordem.IdFundo, cancellationToken);
-
-                bool ehNovaPosicao = posicao == null;
-
-                if (fundo == null || cliente == null)
+                await ResiliencePolicies.DbRetryPolicy.ExecuteAsync(async (ct) =>
                 {
-                    await RejeitarOrdemAsync(ordem, "Fundo ou Cliente não encontrados na base de dados.", cancellationToken);
-                    continue;
-                }
+                    _unitOfWork.BeginTransaction();
 
-                var processador = _processadores.FirstOrDefault(p => p.TipoOperacao == ordem.TipoOperacao);
-                if (processador == null)
-                {
-                    await RejeitarOrdemAsync(ordem, $"Nenhuma estratégia implementada para a operação {ordem.TipoOperacao}.", cancellationToken);
-                    continue;
-                }
-
-                var execucaoResult = processador.ProcessarOrdemPendente(ordem, cliente, fundo, posicao);
-
-                if (execucaoResult.IsSuccess)
-                {
-                    var concluirResult = ordem.Concluir();
-                    if (concluirResult.IsFailure)
+                    try
                     {
-                        await RejeitarOrdemAsync(ordem, concluirResult.GetError().Message, cancellationToken);
-                        continue;
+                        var fundo = await _fundoRepository.ObterPorIdAsync(ordem.IdFundo, ct);
+                        var cliente = await _clienteRepository.ObterPorIdAsync(ordem.IdCliente, ct);
+                        var posicao = await _posicaoRepository.ObterPorIdAsync(ordem.IdCliente, ordem.IdFundo, ct);
+
+                        bool ehNovaPosicao = posicao == null;
+
+                        if (fundo == null || cliente == null)
+                        {
+                            await RejeitarOrdemAsync(ordem, "Fundo ou Cliente não encontrados na base de dados.", ct);
+                            return;
+                        }
+
+                        var processador = _processadores.FirstOrDefault(p => p.TipoOperacao == ordem.TipoOperacao);
+                        if (processador == null)
+                        {
+                            await RejeitarOrdemAsync(ordem, $"Nenhuma estratégia implementada para a operação {ordem.TipoOperacao}.", ct);
+                            return;
+                        }
+
+                        var execucaoResult = processador.ProcessarOrdemPendente(ordem, cliente, fundo, posicao);
+
+                        if (execucaoResult.IsSuccess)
+                        {
+                            var concluirResult = ordem.Concluir();
+                            if (concluirResult.IsFailure)
+                            {
+                                await RejeitarOrdemAsync(ordem, concluirResult.GetError().Message, ct);
+                                return;
+                            }
+
+                            var posicaoAtualizada = execucaoResult.GetSuccess();
+
+                            await _clienteRepository.AtualizarAsync(cliente, ct);
+
+                            if (ehNovaPosicao && ordem.TipoOperacao == TipoOperacao.APORTE)
+                                await _posicaoRepository.AdicionarAsync(posicaoAtualizada, ct);
+                            else
+                                await _posicaoRepository.AtualizarAsync(posicaoAtualizada, ct);
+
+                            await _ordemRepository.AtualizarAsync(ordem, ct);
+
+                            _unitOfWork.Commit();
+                            processadas++;
+                        }
+                        else
+                        {
+                            await RejeitarOrdemAsync(ordem, execucaoResult.GetError().Message, ct);
+                        }
                     }
-
-                    var posicaoAtualizada = execucaoResult.GetSuccess();
-
-                    await _clienteRepository.AtualizarAsync(cliente, cancellationToken);
-
-                    if (ehNovaPosicao && ordem.TipoOperacao == TipoOperacao.APORTE)
-                        await _posicaoRepository.AdicionarAsync(posicaoAtualizada, cancellationToken);
-                    else
-                        await _posicaoRepository.AtualizarAsync(posicaoAtualizada, cancellationToken);
-
-                    await _ordemRepository.AtualizarAsync(ordem, cancellationToken);
-
-                    _unitOfWork.Commit();
-                    processadas++;
-                }
-                else
-                {
-                    await RejeitarOrdemAsync(ordem, execucaoResult.GetError().Message, cancellationToken);
-                }
+                    catch (Exception ex)
+                    {
+                        _unitOfWork.Rollback();
+                        _logger.LogError(ex, "Falha técnica ao processar a ordem {Id}", ordem.Id);
+                        throw;
+                    }
+                }, cancellationToken);
             }
             catch (Exception ex)
             {
-                _unitOfWork.Rollback();
-                _logger.LogError(ex, "Falha técnica ao processar a ordem {Id}", ordem.Id);
+                _logger.LogError(ex, "Falha definitiva ao processar a ordem {Id} após retentativas. O sistema continuará para a próxima ordem.", ordem.Id);
             }
         }
 

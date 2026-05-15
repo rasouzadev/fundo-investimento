@@ -1,4 +1,5 @@
-﻿using FundoInvestimento.Domain.DTOs.Requests.Ordem;
+﻿using FundoInvestimento.Application.Policies;
+using FundoInvestimento.Domain.DTOs.Requests.Ordem;
 using FundoInvestimento.Domain.DTOs.Response.Ordem;
 using FundoInvestimento.Domain.Interfaces.Data;
 using FundoInvestimento.Domain.Interfaces.Repositories;
@@ -47,53 +48,56 @@ public class AgendarOrdemUseCase : IAgendarOrdemUseCase
     /// <inheritdoc/>
     public async Task<Result<OrdemResponse>> ExecuteAsync(AgendarOrdemRequest request, CancellationToken cancellationToken = default)
     {
-        var fundo = await _fundoRepository.ObterPorIdAsync(request.IdFundo, cancellationToken);
-        if (fundo is null)
-            return Result<OrdemResponse>.Failure(new CustomError("FUNDO_NAO_ENCONTRADO", "Fundo de investimento não localizado.", 404));
-
-        var processador = _processadores.FirstOrDefault(p => p.TipoOperacao == request.TipoOperacao);
-        if (processador is null)
-            return Result<OrdemResponse>.Failure(new CustomError("OPERACAO_INVALIDA", "Tipo de operação não suportado.", 400));
-
-        _unitOfWork.BeginTransaction();
-
-        try
+        return await ResiliencePolicies.DbRetryPolicy.ExecuteAsync(async (ct) =>
         {
-            var cliente = await _clienteRepository.ObterPorIdAsync(request.IdCliente, cancellationToken);
-            if (cliente is null)
-                return RollbackAndFail(new CustomError("CLIENTE_NAO_ENCONTRADO", "Cliente não localizado.", 404));
+            var fundo = await _fundoRepository.ObterPorIdAsync(request.IdFundo, ct);
+            if (fundo is null)
+                return Result<OrdemResponse>.Failure(new CustomError("FUNDO_NAO_ENCONTRADO", "Fundo de investimento não localizado.", 404));
 
-            var posicao = await _posicaoRepository.ObterPorIdAsync(request.IdCliente, request.IdFundo, cancellationToken);
-            var dataAtual = DateOnly.FromDateTime(_timeProvider.GetLocalNow().Date);
+            var processador = _processadores.FirstOrDefault(p => p.TipoOperacao == request.TipoOperacao);
+            if (processador is null)
+                return Result<OrdemResponse>.Failure(new CustomError("OPERACAO_INVALIDA", "Tipo de operação não suportado.", 400));
 
-            var criacaoResult = processador.CriarAgendamento(cliente, fundo, posicao, request.QuantidadeCotas, request.DataAgendamento, dataAtual);
-            if (criacaoResult.IsFailure)
-                return RollbackAndFail(criacaoResult.GetError());
+            _unitOfWork.BeginTransaction();
 
-            var ordemAgendada = criacaoResult.GetSuccess();
-
-            await _ordemRepository.AdicionarAsync(ordemAgendada, cancellationToken);
-
-            _unitOfWork.Commit();
-
-            return Result<OrdemResponse>.Success(new OrdemResponse
+            try
             {
-                Id = ordemAgendada.Id,
-                IdCliente = ordemAgendada.IdCliente,
-                IdFundo = ordemAgendada.IdFundo,
-                TipoOperacao = ordemAgendada.TipoOperacao,
-                QuantidadeCotas = ordemAgendada.QuantidadeCotas,
-                DataAgendamento = ordemAgendada.DataAgendamento,
-                Status = ordemAgendada.Status,
-                CriadoEm = ordemAgendada.CriadoEm
-            });
-        }
-        catch (Exception ex)
-        {
-            _unitOfWork.Rollback();
-            _logger.LogError(ex, "Erro crítico ao processar agendamento de ordem. ClienteId: {ClienteId}, FundoId: {FundoId}", request.IdCliente, request.IdFundo);
-            throw;
-        }
+                var cliente = await _clienteRepository.ObterPorIdAsync(request.IdCliente, ct);
+                if (cliente is null)
+                    return RollbackAndFail(new CustomError("CLIENTE_NAO_ENCONTRADO", "Cliente não localizado.", 404));
+
+                var posicao = await _posicaoRepository.ObterPorIdAsync(request.IdCliente, request.IdFundo, ct);
+                var dataAtual = DateOnly.FromDateTime(_timeProvider.GetLocalNow().Date);
+
+                var criacaoResult = processador.CriarAgendamento(cliente, fundo, posicao, request.QuantidadeCotas, request.DataAgendamento, dataAtual);
+                if (criacaoResult.IsFailure)
+                    return RollbackAndFail(criacaoResult.GetError());
+
+                var ordemAgendada = criacaoResult.GetSuccess();
+
+                await _ordemRepository.AdicionarAsync(ordemAgendada, ct);
+
+                _unitOfWork.Commit();
+
+                return Result<OrdemResponse>.Success(new OrdemResponse
+                {
+                    Id = ordemAgendada.Id,
+                    IdCliente = ordemAgendada.IdCliente,
+                    IdFundo = ordemAgendada.IdFundo,
+                    TipoOperacao = ordemAgendada.TipoOperacao,
+                    QuantidadeCotas = ordemAgendada.QuantidadeCotas,
+                    DataAgendamento = ordemAgendada.DataAgendamento,
+                    Status = ordemAgendada.Status,
+                    CriadoEm = ordemAgendada.CriadoEm
+                });
+            }
+            catch (Exception ex)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(ex, "Erro crítico ao processar agendamento de ordem. ClienteId: {ClienteId}, FundoId: {FundoId}", request.IdCliente, request.IdFundo);
+                throw;
+            }
+        }, cancellationToken);
     }
 
     private Result<OrdemResponse> RollbackAndFail(CustomError error)
