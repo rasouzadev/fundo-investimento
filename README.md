@@ -130,17 +130,17 @@ Na evolução da arquitetura para a nuvem, o Quartz.NET (que roda em memória) p
 
 ### Mensageria e DLQ (SQS/SNS)
 
-Para elevar a consistência do fluxo financeiro, ordens que falhem sucessivamente por problemas de infraestrutura ou erros não previstos (após passarem pelas retentativas do Polly) são enviadas para uma Dead Letter Queue (DLQ) usando Amazon SQS.
+Para elevar a consistência do fluxo financeiro, ordens que falhem sucessivamente por problemas de infraestrutura ou erros não previstos (após passarem pelas retentativas do Polly) podem ser enviadas para uma Dead Letter Queue (DLQ) usando Amazon SQS.
 
-Um tópico do Amazon SNS monitora essa DLQ para disparar alertas imediatos para a equipe responsável, evitando que a falha passe despercebida.
+Um tópico do Amazon SNS monitoraria essa DLQ para disparar alertas imediatos para a equipe responsável, evitando que a falha passe despercebida.
 
 ### Banco de Dados (Amazon RDS)
 
-O PostgreSQL roda no RDS com configuração Multi-AZ, garantindo failover automático em caso de queda do data center primário, mantendo o controle de concorrência blindado.
+O PostgreSQL executaria no RDS com configuração Multi-AZ, garantindo failover automático em caso de queda do data center primário, mantendo o controle de concorrência blindado.
 
 ### Segurança e Observabilidade
 
-O tráfego passa por um AWS WAF mitigando ataques. Toda a emissão de logs estruturados e métricas da aplicação são ingeridas centralmente no Amazon CloudWatch.
+O tráfego passaria por um AWS WAF mitigando ataques. Toda a emissão de logs estruturados e métricas da aplicação seriam ingeridas centralmente no Amazon CloudWatch.
 
 # Uso de IA
 
