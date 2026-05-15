@@ -22,5 +22,20 @@ services:
       - "5341:80"
       - "5342:5341"
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fundo_investimento_api
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Database=Host=postgres;Port=5432;Database=fundoinvestimento;Username=postgres;Password=1234
+      - Seq__ServerUrl=http://seq:80
+    depends_on:
+      - postgres
+      - seq
+
 volumes:
   postgres_data:

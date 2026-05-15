@@ -20,7 +20,7 @@ public static class ObservabilityExtensions
                 .Enrich.WithMachineName()
                 .Enrich.WithEnvironmentName()
                 .WriteTo.Console(new RenderedCompactJsonFormatter())
-                .WriteTo.Seq("http://localhost:5341");
+                .WriteTo.Seq(context.Configuration["Seq:ServerUrl"] ?? throw new Exception("A variável de ambiente 'Seq:ServerUrl' não foi encontrada nas configurações."));
         });
     }
 }
