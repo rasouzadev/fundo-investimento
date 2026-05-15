@@ -7,7 +7,10 @@ Uma API para gestão de aportes e resgates de um fundo de investimentos fictíci
 * **.NET 10 (C#):** Framework principal utilizando as últimas funcionalidades da linguagem.
 * **PostgreSQL:** Banco de dados relacional para garantia de transações ACID.
 * **Dapper:** Micro-ORM para acesso a dados de alta performance e controle total sobre as queries.
-* **OpenAPI / Scalar:** Para documentação da API.
+* **Serilog & Seq:** Log estruturado (JSON) e painel de observabilidade em tempo real.
+* **Polly:** Tratamento de resiliência e políticas de Retry para o banco de dados.
+* **OpenAPI / Scalar:** Para documentação interativa da API.
+* **xUnit, Moq & AutoFixture:** Suíte completa de testes unitários isolados.
 
 ## Estrutura do Projeto
 
@@ -33,6 +36,9 @@ Para lidar com requisições simultâneas e prevenir a **Condição de Corrida (
 ### 3. Result Pattern
 O sistema evita o uso de *Exceptions* para controle de fluxo ou quebra de regras de negócio conhecidas (ex: saldo insuficiente, fundo fechado). Em vez disso, a camada de domínio utiliza o padrão **Result Pattern** (`Result` / `Result<T>`) presente no módulo `FundoInvestimento.Libs`. Isso torna o tratamento de erros explícito, padroniza as respostas de erro HTTP e aumenta a performance da aplicação.
 
+### 4. Strategy Pattern
+As regras de negócio específicas para `APORTE` e `RESGATE` foram isoladas em estratégias distintas (`ProcessadorAporteStrategy` e `ProcessadorResgateStrategy`), garantindo os princípios SRP (Responsabilidade Única) e OCP (Aberto/Fechado) do SOLID.
+
 ---
 
 ## Configuração e Segurança
@@ -45,12 +51,116 @@ Para garantir a segurança, a connection string do banco de dados não é armaze
     dotnet user-secrets init
     dotnet user-secrets set "ConnectionStrings:Database" "Sua_Connection_String_Aqui"
     ```
-* **Produção:** A aplicação lê a variável de ambiente `ConnectionStrings__Supabase`.
+* **Produção:** A aplicação lê a variável de ambiente `ConnectionStrings__Database`.
 
 ### 2. Inicialização do Banco de Dados
 A aplicação possui um serviço de `DatabaseInitializer` que executa os scripts DDL automaticamente ao iniciar, porém, por segurança, esta funcionalidade está restrita ao ambiente de **Desenvolvimento (`Development`)**.
 
 ---
+
+## Como Executar o Projeto
+
+### Pré-requisitos
+* [.NET 10 SDK](https://dotnet.microsoft.com/download)
+* [Docker Desktop](https://www.docker.com/products/docker-desktop)
+
+### Passo a Passo (Ambiente Local)
+
+1. **Suba a infraestrutura (PostgreSQL + Seq para Logs):**
+   Na raiz do projeto, onde está o arquivo `docker-compose.yml`, execute:
+   ```bash
+   docker-compose up -d
+   ```
+   
+2. Execute a API:
+   Navegue até a pasta do projeto da API e inicie a aplicação:
+   ```bash
+   cd src/FundoInvestimento.Api
+   dotnet run
+   ```
+3. Acesse as Ferramentas:
+   API / Swagger: http://localhost:5000/swagger
+   Painel de Logs (Seq): http://localhost:5341
+
+# Desenho de Solução na Nuvem (AWS)
+
+```mermaid
+graph TD
+    Client([Cliente / Web App]) -. HTTPS .-> WAF
+
+    subgraph AWS Cloud [AWS Cloud - VPC]
+
+        subgraph Security & Routing [Segurança e Roteamento]
+            WAF[AWS WAF] --> ALB[Application Load Balancer]
+        end
+
+        subgraph Compute Layer [Camada de Computação]
+            ALB --> EKS[Amazon EKS<br/>API .NET 10]
+            Cron((Amazon EventBridge<br/>Cron)) --> Worker[AWS Lambda / AWS Batch<br/>Worker de Agendadas]
+        end
+
+        subgraph Data Layer [Camada de Dados]
+            EKS <--> RDS[(Amazon RDS<br/>PostgreSQL Multi-AZ)]
+            Worker <--> RDS
+        end
+
+        subgraph Resiliency Layer [Camada de Resiliência]
+            Worker -- "Falhas Críticas" --> DLQ[Amazon SQS<br/>Dead Letter Queue]
+            DLQ --> SNS[Amazon SNS<br/>Alertas e Notificações]
+        end
+
+        subgraph Observability [Observabilidade]
+            EKS -. "Logs/Traces" .-> CW[Amazon CloudWatch]
+            Worker -. "Logs" .-> CW
+        end
+    end
+
+    style Client fill:#fff,stroke:#333,stroke-width:2px
+    style AWS Cloud fill:#f4f4f4,stroke:#ff9900,stroke-width:2px,stroke-dasharray: 5 5
+    style EKS fill:#ed7100,stroke:#fff,stroke-width:2px,color:#fff
+    style Worker fill:#ed7100,stroke:#fff,stroke-width:2px,color:#fff
+    style RDS fill:#336699,stroke:#fff,stroke-width:2px,color:#fff
+    style DLQ fill:#ff4f8b,stroke:#fff,stroke-width:2px,color:#fff
+    style SNS fill:#ff4f8b,stroke:#fff,stroke-width:2px,color:#fff
+```
+
+## Componentes da Arquitetura
+
+### APIs (Amazon EKS)
+
+A API REST pode utilizar Docker para rodar em clusters Kubernetes gerenciados pelo Amazon EKS. Isso permite um ecossistema robusto para orquestração, Horizontal Pod Autoscaling (HPA) para absorver picos agressivos de acesso (como na abertura do mercado) e rolling updates sem downtime.
+
+### Processamento Assíncrono (Lambda / AWS Batch)
+
+Na evolução da arquitetura para a nuvem, o Quartz.NET (que roda em memória) pode ser facilmente substituído pelo AWS EventBridge atuando como scheduler (Cron). Ele acionaria funções AWS Lambda (para processamentos rápidos) ou o AWS Batch.
+
+### Mensageria e DLQ (SQS/SNS)
+
+Para elevar a consistência do fluxo financeiro, ordens que falhem sucessivamente por problemas de infraestrutura ou erros não previstos (após passarem pelas retentativas do Polly) são enviadas para uma Dead Letter Queue (DLQ) usando Amazon SQS.
+
+Um tópico do Amazon SNS monitora essa DLQ para disparar alertas imediatos para a equipe responsável, evitando que a falha passe despercebida.
+
+### Banco de Dados (Amazon RDS)
+
+O PostgreSQL roda no RDS com configuração Multi-AZ, garantindo failover automático em caso de queda do data center primário, mantendo o controle de concorrência blindado.
+
+### Segurança e Observabilidade
+
+O tráfego passa por um AWS WAF mitigando ataques. Toda a emissão de logs estruturados e métricas da aplicação são ingeridas centralmente no Amazon CloudWatch.
+
+# Uso de IA
+
+Neste projeto, a Inteligência Artificial foi utilizada como uma ferramenta de Pair Programming, acelerando o ciclo de desenvolvimento.
+
+As principais frentes de atuação foram:
+
+- **Documentação** Auxílio no README, além de documentação no código e OpenAPI.
+
+- **Testes Unitários:** Geração do boilerplate das suítes de testes (xUnit + Moq), permitindo direcionar o foco humano exclusivamente à validação das asserções financeiras e lógicas de negócios.
+
+- **Discussões Técnicas:**: Discussões de patterns, melhores práticas, formas de implementar features e bugfixes.
+
+- **Códigos Boilerplate:**: Configurações iniciais, como OpenAPI, Observability, configurações de JSON, etc.
 
 ## Modelagem do Banco de Dados
 		
