@@ -41,4 +41,12 @@ public interface IOrdemRepository
     /// <param name="cancellationToken">Token para cancelamento assíncrono da operação.</param>
     /// <returns>Uma <see cref="Task"/> que representa a conclusão da operação de atualização.</returns>
     Task AtualizarAsync(Ordem ordem, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Busca todas as ordens que estão com o status PENDENTE e cuja data de agendamento seja menor ou igual à data base fornecida.
+    /// </summary>
+    /// <param name="dataBase">A data de corte (geralmente a data atual do sistema).</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>Uma coleção de ordens prontas para serem processadas.</returns>
+    Task<IEnumerable<Ordem>> ObterPendentesAteDataAsync(DateOnly dataBase, CancellationToken cancellationToken = default);
 }

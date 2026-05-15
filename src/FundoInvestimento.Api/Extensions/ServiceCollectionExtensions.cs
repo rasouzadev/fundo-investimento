@@ -7,8 +7,10 @@ using FundoInvestimento.Domain.Interfaces.Strategies;
 using FundoInvestimento.Domain.Interfaces.UseCases;
 using FundoInvestimento.Infrastructure.Data;
 using FundoInvestimento.Infrastructure.Data.Handlers;
+using FundoInvestimento.Infrastructure.Jobs;
 using FundoInvestimento.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Http.Json;
+using Quartz;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -136,6 +138,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IObterSaldoClienteUseCase, ObterSaldoClienteUseCase>();
         services.AddScoped<IDepositarSaldoUseCase, DepositarSaldoUseCase>();
         services.AddScoped<IAgendarOrdemUseCase, AgendarOrdemUseCase>();
+        services.AddScoped<IProcessarOrdensAgendadasUseCase, ProcessarOrdensAgendadasUseCase>();
 
         return services;
     }
@@ -148,6 +151,30 @@ public static class ServiceCollectionExtensions
     {
         services.AddScoped<IProcessadorOperacaoStrategy, ProcessadorAporteStrategy>();
         services.AddScoped<IProcessadorOperacaoStrategy, ProcessadorResgateStrategy>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddQuartz(this IServiceCollection services)
+    {
+        services.AddQuartz(q =>
+        {
+            var jobKey = new JobKey(nameof(ProcessarOrdensAgendadasJob));
+
+            q.AddJob<ProcessarOrdensAgendadasJob>(opts => opts.WithIdentity(jobKey));
+
+            q.AddTrigger(opts => opts
+                .ForJob(jobKey)
+                .WithIdentity($"{nameof(ProcessarOrdensAgendadasJob)}-trigger")
+                .WithSimpleSchedule(x => x
+                    .WithIntervalInMinutes(1)
+                    .RepeatForever()));
+        });
+
+        services.AddQuartzHostedService(options =>
+        {
+            options.WaitForJobsToComplete = true;
+        });
 
         return services;
     }

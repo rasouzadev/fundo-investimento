@@ -149,4 +149,27 @@ public class OrdemRepository : IOrdemRepository
 
         await _session.Connection.ExecuteAsync(command);
     }
+
+    /// <inheritdoc/>
+    public async Task<IEnumerable<Ordem>> ObterPendentesAteDataAsync(DateOnly dataBase, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT 
+                id AS Id, 
+                id_cliente AS IdCliente, 
+                id_fundo AS IdFundo, 
+                tipo_operacao AS TipoOperacao, 
+                quantidade_cotas AS QuantidadeCotas, 
+                data_agendamento AS DataAgendamento, 
+                status AS Status, 
+                criado_em AS CriadoEm 
+            FROM ordem 
+            WHERE status = 'PENDENTE' AND data_agendamento <= @DataBase 
+            ORDER BY criado_em ASC";
+
+        return await _session.Connection.QueryAsync<Ordem>(
+            sql,
+            new { DataBase = dataBase.ToDateTime(TimeOnly.MinValue) },
+            _session.Transaction);
+    }
 }
