@@ -1,4 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using Serilog;
+using Serilog.Formatting.Compact;
+using System.Diagnostics.CodeAnalysis;
 
 namespace FundoInvestimento.Api.Extensions;
 
@@ -8,12 +10,16 @@ public static class ObservabilityExtensions
     /// <summary>
     /// Configura os provedores de log e métricas (Observabilidade) da aplicação.
     /// </summary>
-    public static WebApplicationBuilder AddObservability(this WebApplicationBuilder builder)
+    public static IHostBuilder AddObservability(this IHostBuilder hostBuilder)
     {
-        builder.Logging.ClearProviders();
-        builder.Logging.AddConsole();
-        builder.Logging.AddDebug();
-
-        return builder;
+        return hostBuilder.UseSerilog((context, services, configuration) =>
+        {
+            configuration
+                .ReadFrom.Configuration(context.Configuration)
+                .Enrich.FromLogContext()
+                .Enrich.WithMachineName()
+                .Enrich.WithEnvironmentName()
+                .WriteTo.Console(new RenderedCompactJsonFormatter());
+        });
     }
 }
